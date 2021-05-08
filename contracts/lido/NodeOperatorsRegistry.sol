@@ -86,9 +86,12 @@ contract NodeOperatorsRegistry is INodeOperatorsRegistry, IsContract {
         _;
     }
 
-    constructor(address _lido) public {
+    constructor() public {
         TOTAL_OPERATORS_COUNT_POSITION.setStorageUint256(0);
         ACTIVE_OPERATORS_COUNT_POSITION.setStorageUint256(0);
+    }
+
+    function setLido(address _lido) external {
         LIDO_POSITION.setStorageAddress(_lido);
     }
 

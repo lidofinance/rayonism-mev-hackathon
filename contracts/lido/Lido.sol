@@ -376,7 +376,6 @@ contract Lido is ILido, IsContract, StETH {
     * @param _oracle oracle contract
     */
     function _setOracle(address _oracle) internal {
-        require(isContract(_oracle), "NOT_A_CONTRACT");
         ORACLE_POSITION.setStorageAddress(_oracle);
     }
 
