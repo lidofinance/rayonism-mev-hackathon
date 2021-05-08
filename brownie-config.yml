@@ -5,10 +5,21 @@ dependencies:
 
 compiler:
   solc:
-    version: 0.4.24
+    version: null
     optimizer:
       enabled: true
       runs: 200
 
 networks:
   default: development
+  development:
+    cmd: ganache-cli
+    host: http://127.0.0.1
+    timeout: 120
+    cmd_settings:
+      port: 8545
+      gas_limit: 12000000
+      accounts: 30
+      default_balance: '1000 ether'
+      evm_version: istanbul
+      mnemonic: brownie
