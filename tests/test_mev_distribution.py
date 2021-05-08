@@ -23,14 +23,19 @@ def test_mev_reception(accounts, Lido, NodeOperatorsRegistry, DepositContractMoc
     add_operators(registry, operators, deployer)
 
     # submit ETH to Lido from three addresses, minting stETH
-    stakers = [(accounts[5], 1 * 10**18), (accounts[6], 32 * 10**18), (accounts[7], 64 * 10**18)]
+    stakers = [(accounts[5], 1 * 10**18), (accounts[6], 32 * 10**18), (accounts[7], 96 * 10**18)]
     stake(lido, stakers, oracle)
+
+    print(
+        'number of validators each node operator runs:',
+        [ registry.getNodeOperator(i, False)['usedSigningKeys'] for i in range(len(operators)) ]
+    )
 
     # print balances
     ops_balances_prev = [ lido.balanceOf(op) for op in operators ]
     stakers_balances_prev = [ lido.balanceOf(addr[0]) for addr in stakers ]
 
-    print('pre-MEV ops stETH balances:', [ bal / 10**18 for bal in ops_balances_prev ])
+    print('pre-MEV operators stETH balances:', [ bal / 10**18 for bal in ops_balances_prev ])
     print('pre-MEV stakers stETH balances:', [ bal / 10**18 for bal in stakers_balances_prev ])
 
     # distribute MEV to node operators and stakers
@@ -44,7 +49,7 @@ def test_mev_reception(accounts, Lido, NodeOperatorsRegistry, DepositContractMoc
     ops_balances_post = [ lido.balanceOf(op) for op in operators ]
     stakers_balances_post = [ lido.balanceOf(addr[0]) for addr in stakers ]
 
-    print('post-MEV ops stETH balances:', [ bal / 10**18 for bal in ops_balances_post ])
+    print('post-MEV operators stETH balances:', [ bal / 10**18 for bal in ops_balances_post ])
     print('post-MEV stakers stETH balances:', [ bal / 10**18 for bal in stakers_balances_post ])
 
     ops_balances_inc = [
@@ -58,7 +63,7 @@ def test_mev_reception(accounts, Lido, NodeOperatorsRegistry, DepositContractMoc
     ]
 
     print(
-        f'ops stETH balances increase (total {sum(ops_balances_inc) / 10**18} stETH):',
+        f'operators stETH balances increase (total {sum(ops_balances_inc) / 10**18} stETH):',
         [ bal / 10**18 for bal in ops_balances_inc ]
     )
 
