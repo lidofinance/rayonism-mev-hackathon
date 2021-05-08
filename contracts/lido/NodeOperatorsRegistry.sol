@@ -5,7 +5,7 @@
 /* See contracts/COMPILERS.md */
 pragma solidity 0.4.24;
 
-import "aragon/aragonOS@4.4.0/contracts/apps/AragonApp.sol";
+import "aragon/aragonOS@4.4.0/contracts/common/UnstructuredStorage.sol";
 import "aragon/aragonOS@4.4.0/contracts/common/IsContract.sol";
 import "aragon/aragonOS@4.4.0/contracts/lib/math/SafeMath.sol";
 import "aragon/aragonOS@4.4.0/contracts/lib/math/SafeMath64.sol";
@@ -22,19 +22,10 @@ import "./lib/MemUtils.sol";
   *
   * NOTE: the code below assumes moderate amount of node operators, e.g. up to 50.
   */
-contract NodeOperatorsRegistry is INodeOperatorsRegistry, IsContract, AragonApp {
+contract NodeOperatorsRegistry is INodeOperatorsRegistry, IsContract {
     using SafeMath for uint256;
     using SafeMath64 for uint64;
     using UnstructuredStorage for bytes32;
-
-    /// ACL
-    bytes32 constant public MANAGE_SIGNING_KEYS = keccak256("MANAGE_SIGNING_KEYS");
-    bytes32 constant public ADD_NODE_OPERATOR_ROLE = keccak256("ADD_NODE_OPERATOR_ROLE");
-    bytes32 constant public SET_NODE_OPERATOR_ACTIVE_ROLE = keccak256("SET_NODE_OPERATOR_ACTIVE_ROLE");
-    bytes32 constant public SET_NODE_OPERATOR_NAME_ROLE = keccak256("SET_NODE_OPERATOR_NAME_ROLE");
-    bytes32 constant public SET_NODE_OPERATOR_ADDRESS_ROLE = keccak256("SET_NODE_OPERATOR_ADDRESS_ROLE");
-    bytes32 constant public SET_NODE_OPERATOR_LIMIT_ROLE = keccak256("SET_NODE_OPERATOR_LIMIT_ROLE");
-    bytes32 constant public REPORT_STOPPED_VALIDATORS_ROLE = keccak256("REPORT_STOPPED_VALIDATORS_ROLE");
 
     uint256 constant public PUBKEY_LENGTH = 48;
     uint256 constant public SIGNATURE_LENGTH = 96;
@@ -95,11 +86,10 @@ contract NodeOperatorsRegistry is INodeOperatorsRegistry, IsContract, AragonApp 
         _;
     }
 
-    function initialize(address _lido) public onlyInit {
+    constructor(address _lido) public {
         TOTAL_OPERATORS_COUNT_POSITION.setStorageUint256(0);
         ACTIVE_OPERATORS_COUNT_POSITION.setStorageUint256(0);
         LIDO_POSITION.setStorageAddress(_lido);
-        initialized();
     }
 
     /**
@@ -110,7 +100,6 @@ contract NodeOperatorsRegistry is INodeOperatorsRegistry, IsContract, AragonApp 
       * @return a unique key of the added operator
       */
     function addNodeOperator(string _name, address _rewardAddress, uint64 _stakingLimit) external
-        auth(ADD_NODE_OPERATOR_ROLE)
         validAddress(_rewardAddress)
         returns (uint256 id)
     {
@@ -136,7 +125,6 @@ contract NodeOperatorsRegistry is INodeOperatorsRegistry, IsContract, AragonApp 
       * @notice `_active ? 'Enable' : 'Disable'` the node operator #`_id`
       */
     function setNodeOperatorActive(uint256 _id, bool _active) external
-        authP(SET_NODE_OPERATOR_ACTIVE_ROLE, arr(_id, _active ? uint256(1) : uint256(0)))
         operatorExists(_id)
     {
         if (operators[_id].active != _active) {
@@ -156,7 +144,6 @@ contract NodeOperatorsRegistry is INodeOperatorsRegistry, IsContract, AragonApp 
       * @notice Change human-readable name of the node operator #`_id` to `_name`
       */
     function setNodeOperatorName(uint256 _id, string _name) external
-        authP(SET_NODE_OPERATOR_NAME_ROLE, arr(_id))
         operatorExists(_id)
     {
         operators[_id].name = _name;
@@ -167,7 +154,6 @@ contract NodeOperatorsRegistry is INodeOperatorsRegistry, IsContract, AragonApp 
       * @notice Change reward address of the node operator #`_id` to `_rewardAddress`
       */
     function setNodeOperatorRewardAddress(uint256 _id, address _rewardAddress) external
-        authP(SET_NODE_OPERATOR_ADDRESS_ROLE, arr(_id, uint256(_rewardAddress)))
         operatorExists(_id)
         validAddress(_rewardAddress)
     {
@@ -179,7 +165,6 @@ contract NodeOperatorsRegistry is INodeOperatorsRegistry, IsContract, AragonApp 
       * @notice Set the maximum number of validators to stake for the node operator #`_id` to `_stakingLimit`
       */
     function setNodeOperatorStakingLimit(uint256 _id, uint64 _stakingLimit) external
-        authP(SET_NODE_OPERATOR_LIMIT_ROLE, arr(_id, uint256(_stakingLimit)))
         operatorExists(_id)
     {
         operators[_id].stakingLimit = _stakingLimit;
@@ -190,7 +175,6 @@ contract NodeOperatorsRegistry is INodeOperatorsRegistry, IsContract, AragonApp 
       * @notice Report `_stoppedIncrement` more stopped validators of the node operator #`_id`
       */
     function reportStoppedValidators(uint256 _id, uint64 _stoppedIncrement) external
-        authP(REPORT_STOPPED_VALIDATORS_ROLE, arr(_id, uint256(_stoppedIncrement)))
         operatorExists(_id)
     {
         require(0 != _stoppedIncrement, "EMPTY_VALUE");
@@ -223,9 +207,7 @@ contract NodeOperatorsRegistry is INodeOperatorsRegistry, IsContract, AragonApp 
       * @param _pubkeys Several concatenated validator signing keys
       * @param _signatures Several concatenated signatures for (pubkey, withdrawal_credentials, 32000000000) messages
       */
-    function addSigningKeys(uint256 _operator_id, uint256 _quantity, bytes _pubkeys, bytes _signatures) external
-        authP(MANAGE_SIGNING_KEYS, arr(_operator_id))
-    {
+    function addSigningKeys(uint256 _operator_id, uint256 _quantity, bytes _pubkeys, bytes _signatures) external {
         _addSigningKeys(_operator_id, _quantity, _pubkeys, _signatures);
     }
 
@@ -259,7 +241,6 @@ contract NodeOperatorsRegistry is INodeOperatorsRegistry, IsContract, AragonApp 
       */
     function removeSigningKey(uint256 _operator_id, uint256 _index)
         external
-        authP(MANAGE_SIGNING_KEYS, arr(_operator_id))
     {
         _removeSigningKey(_operator_id, _index);
     }

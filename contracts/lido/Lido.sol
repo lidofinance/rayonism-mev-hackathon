@@ -33,19 +33,10 @@ import "./StETH.sol";
 * rewards, no Transfer events are generated: doing so would require emitting an event
 * for each token holder and thus running an unbounded loop.
 */
-contract Lido is ILido, IsContract, StETH, AragonApp {
+contract Lido is ILido, IsContract, StETH {
     using SafeMath for uint256;
     using SafeMath64 for uint64;
     using UnstructuredStorage for bytes32;
-
-    /// ACL
-    bytes32 constant public PAUSE_ROLE = keccak256("PAUSE_ROLE");
-    bytes32 constant public MANAGE_FEE = keccak256("MANAGE_FEE");
-    bytes32 constant public MANAGE_WITHDRAWAL_KEY = keccak256("MANAGE_WITHDRAWAL_KEY");
-    bytes32 constant public SET_ORACLE = keccak256("SET_ORACLE");
-    bytes32 constant public BURN_ROLE = keccak256("BURN_ROLE");
-    bytes32 constant public SET_TREASURY = keccak256("SET_TREASURY");
-    bytes32 constant public SET_INSURANCE_FUND = keccak256("SET_INSURANCE_FUND");
 
     uint256 constant public PUBKEY_LENGTH = 48;
     uint256 constant public WITHDRAWAL_CREDENTIALS_LENGTH = 32;
@@ -82,27 +73,27 @@ contract Lido is ILido, IsContract, StETH, AragonApp {
     bytes32 internal constant WITHDRAWAL_CREDENTIALS_POSITION = keccak256("lido.Lido.withdrawalCredentials");
 
     /**
-    * @dev As AragonApp, Lido contract must be initialized with following variables:
+    * @dev Lido contract must be initialized with following variables:
     * @param depositContract official ETH2 Deposit contract
     * @param _oracle oracle contract
     * @param _operators instance of Node Operators Registry
+    * @param _treasury Treasury address
+    * @param _insuranceFund Insurance fund address
     */
-    function initialize(
+    constructor(
         IDepositContract depositContract,
         address _oracle,
         INodeOperatorsRegistry _operators,
         address _treasury,
         address _insuranceFund
     )
-        public onlyInit
+        public
     {
         _setDepositContract(depositContract);
         _setOracle(_oracle);
         _setOperators(_operators);
         _setTreasury(_treasury);
         _setInsuranceFund(_insuranceFund);
-
-        initialized();
     }
 
     /**
@@ -145,7 +136,6 @@ contract Lido is ILido, IsContract, StETH, AragonApp {
 
     function burnShares(address _account, uint256 _sharesAmount)
         external
-        authP(BURN_ROLE, arr(_account, _sharesAmount))
         returns (uint256 newTotalShares)
     {
         return _burnShares(_account, _sharesAmount);
@@ -154,14 +144,14 @@ contract Lido is ILido, IsContract, StETH, AragonApp {
     /**
       * @notice Stop pool routine operations
       */
-    function stop() external auth(PAUSE_ROLE) {
+    function stop() external {
         _stop();
     }
 
     /**
       * @notice Resume pool routine operations
       */
-    function resume() external auth(PAUSE_ROLE) {
+    function resume() external {
         _resume();
     }
 
@@ -169,7 +159,7 @@ contract Lido is ILido, IsContract, StETH, AragonApp {
       * @notice Set fee rate to `_feeBasisPoints` basis points. The fees are accrued when oracles report staking results
       * @param _feeBasisPoints Fee rate, in basis points
       */
-    function setFee(uint16 _feeBasisPoints) external auth(MANAGE_FEE) {
+    function setFee(uint16 _feeBasisPoints) external {
         _setBPValue(FEE_POSITION, _feeBasisPoints);
         emit FeeSet(_feeBasisPoints);
     }
@@ -182,7 +172,7 @@ contract Lido is ILido, IsContract, StETH, AragonApp {
         uint16 _insuranceFeeBasisPoints,
         uint16 _operatorsFeeBasisPoints
     )
-        external auth(MANAGE_FEE)
+        external
     {
         require(
             10000 == uint256(_treasuryFeeBasisPoints)
@@ -204,7 +194,7 @@ contract Lido is ILido, IsContract, StETH, AragonApp {
       * by calling pushBeacon.
       * @param _oracle oracle contract
       */
-    function setOracle(address _oracle) external auth(SET_ORACLE) {
+    function setOracle(address _oracle) external {
         _setOracle(_oracle);
     }
 
@@ -213,7 +203,7 @@ contract Lido is ILido, IsContract, StETH, AragonApp {
       * @dev Contract specified here is used to accumulate the protocol treasury fee.
       * @param _treasury contract which accumulates treasury fee.
       */
-    function setTreasury(address _treasury) external auth(SET_TREASURY) {
+    function setTreasury(address _treasury) external {
         _setTreasury(_treasury);
     }
 
@@ -222,7 +212,7 @@ contract Lido is ILido, IsContract, StETH, AragonApp {
       * @dev Contract specified here is used to accumulate the protocol insurance fee.
       * @param _insuranceFund contract which accumulates insurance fee.
       */
-    function setInsuranceFund(address _insuranceFund) external auth(SET_INSURANCE_FUND) {
+    function setInsuranceFund(address _insuranceFund) external {
         _setInsuranceFund(_insuranceFund);
     }
 
@@ -232,7 +222,7 @@ contract Lido is ILido, IsContract, StETH, AragonApp {
       * @param _withdrawalCredentials hash of withdrawal multisignature key as accepted by
       *        the deposit_contract.deposit function
       */
-    function setWithdrawalCredentials(bytes32 _withdrawalCredentials) external auth(MANAGE_WITHDRAWAL_KEY) {
+    function setWithdrawalCredentials(bytes32 _withdrawalCredentials) external {
         WITHDRAWAL_CREDENTIALS_POSITION.setStorageBytes32(_withdrawalCredentials);
         getOperators().trimUnusedKeys();
 
@@ -283,29 +273,6 @@ contract Lido is ILido, IsContract, StETH, AragonApp {
             uint256 rewards = _beaconBalance.sub(rewardBase);
             distributeRewards(rewards);
         }
-    }
-
-    /**
-      * @notice Send funds to recovery Vault. Overrides default AragonApp behaviour.
-      * @param _token Token to be sent to recovery vault.
-      */
-    function transferToVault(address _token) external {
-        require(allowRecoverability(_token), "RECOVER_DISALLOWED");
-        address vault = getRecoveryVault();
-        require(isContract(vault), "RECOVER_VAULT_NOT_CONTRACT");
-
-        uint256 balance;
-        if (_token == ETH) {
-            balance = _getUnaccountedEther();
-            vault.transfer(balance);
-        } else {
-            ERC20 token = ERC20(_token);
-            balance = token.staticBalanceOf(this);
-            // safeTransfer comes from overriden default implementation
-            require(token.safeTransfer(vault, balance), "RECOVER_TOKEN_TRANSFER_FAILED");
-        }
-
-        emit RecoverToVault(vault, _token, balance);
     }
 
     /**
